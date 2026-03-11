@@ -195,6 +195,109 @@ paths:
               schema:
                 $ref: '#/components/schemas/OrdersHistoryResponseDTO'
 
+  /orders/{order_id}/shipping:
+    post:
+      tags: [Orders]
+      summary: Выбор способа доставки заказа
+      security: [{ bearerHttpAuthentication: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectShippingRequest'
+      responses:
+        '200':
+          description: Способ доставки выбран
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectShippingResponse'
+        '400':
+          description: Некорректные данные доставки
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orders/{order_id}/payment:
+    post:
+      tags: [Orders]
+      summary: Инициировать оплату заказа
+      security: [{ bearerHttpAuthentication: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartPaymentRequest'
+      responses:
+        '200':
+          description: Платёж инициирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartPaymentResponse'
+        '409':
+          description: Заказ в неподходящем статусе
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /orders/{order_id}/confirm:
+    put:
+      tags: [Orders]
+      summary: Подтвердить заказ после оплаты
+      security: [{ bearerHttpAuthentication: [] }]
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Заказ подтвержден
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderConfirmResponse'
+        '409':
+          description: Оплата не завершена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /delivery-points:
+    get:
+      tags: [Orders]
+      summary: Получить пункты самовывоза
+      security: [{ bearerHttpAuthentication: [] }]
+      responses:
+        '200':
+          description: Список точек самовывоза
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryPointsResponse'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -376,6 +479,94 @@ components:
         applied_filters: {type: object}
         query_time_ms: {type: integer, minimum: 0}
       required: [total, items]
+    SelectShippingRequest:
+      type: object
+      required: [deliveryType]
+      properties:
+        deliveryType:
+          type: string
+          enum: [courier, pickup]
+        address:
+          $ref: '#/components/schemas/ShippingAddress'
+        pickupPointId:
+          type: string
+          description: ID точки самовывоза
+
+    ShippingAddress:
+      type: object
+      required: [city, street, house]
+      properties:
+        city: { type: string }
+        street: { type: string }
+        house: { type: string }
+        apartment: { type: string }
+        postcode: { type: string }
+
+    SelectShippingResponse:
+      type: object
+      required: [deliveryCost, totalAmount]
+      properties:
+        deliveryCost:
+          type: number
+          example: 500
+        totalAmount:
+          type: number
+          example: 2500
+        estimatedDeliveryAt:
+          type: string
+          example: "2026-03-10T14:00:00Z"
+
+    StartPaymentRequest:
+      type: object
+      required: [paymentMethod]
+      properties:
+        paymentMethod:
+          type: string
+          enum: [card, sbp]
+        paymentGateway:
+          type: string
+          example: mock
+
+    StartPaymentResponse:
+      type: object
+      required: [paymentUrl, status]
+      properties:
+        paymentUrl:
+          type: string
+          example: "https://pay.example.com/session/abc123"
+        status:
+          type: string
+          enum: [pending, paid, failed]
+
+    OrderConfirmResponse:
+      type: object
+      required: [status, trackNumber]
+      properties:
+        status:
+          type: string
+          example: confirmed
+        trackNumber:
+          type: string
+          example: "TRACK123456"
+
+    DeliveryPoint:
+      type: object
+      required: [id, address, hours]
+      properties:
+        id:
+          type: string
+          example: point_1
+        address:
+          type: string
+          example: "Екб, Ленина 50"
+        hours:
+          type: string
+          example: "10:00-21:00"
+
+    DeliveryPointsResponse:
+      type: array
+      items:
+        $ref: '#/components/schemas/DeliveryPoint'
 
 tags:
   - name: StockReserve
