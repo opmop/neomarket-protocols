@@ -8,3 +8,168 @@ info:
 
 paths: {}
 # Здесь команды QA Corps описывают свои эндпоинты
+deliveryExampleRequest:
+  deliveryType: courier
+  address:
+    street: "Ленина"
+    house: "50"
+    city: "Екб"
+
+deliveryExampleResponse:
+  deliveryCost: 500
+  totalAmount: 2500
+  time: "завтра 14:00"
+
+paymentMethodsResponse:
+  - id: card
+    name: "Карта Тинькофф"
+    fee: 0
+  - id: sbp
+    name: "СБП"
+    fee: 0
+
+paymentStartRequest:
+  paymentMethod: card
+
+paymentStartResponse:
+  paymentUrl: "https://pay.tinkoff.ru/abc123"
+  status: pending
+
+deliveryPointsResponse:
+  - id: point_1
+    address: "Екб, Ленина 50"
+    hours: "10:00-21:00"
+
+orderConfirmResponse:
+  status: confirmed
+  trackNumber: TRACK123456
+
+testIds:
+  delivery-type: "селект курьер/самовывоз"
+  delivery-address: "поля адреса"
+  payment-card: "кнопка картой"
+  payment-sbp: "кнопка СБП"
+  order-total: "итоговая сумма"
+  confirm-button: "кнопка Оформить"
+
+workflow:
+  - "GET /payment-methods + GET /delivery-points — загрузка опций"
+  - "POST /shipping — выбор доставки → пересчет суммы"
+  - "POST /payment — оплата"
+  - "PUT /confirm — готовый заказ"
+
+postmanCollection:
+  info:
+    name: "Order Checkout API (Екб Магазин)"
+    description: "Оформление заказа: доставка + оплата"
+    schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+
+  variable:
+    - key: baseUrl
+      value: "https://your-api.com/api"
+    - key: orderId
+      value: "order_123456"
+
+  item:
+    - name: "1. Способы оплаты"
+      request:
+        method: GET
+        header:
+          - key: Content-Type
+            value: application/json
+        url:
+          raw: "{{baseUrl}}/payment-methods"
+          host: ["{{baseUrl}}"]
+          path: ["payment-methods"]
+
+    - name: "2. Пункты самовывоза"
+      request:
+        method: GET
+        header:
+          - key: Content-Type
+            value: application/json
+        url:
+          raw: "{{baseUrl}}/delivery-points"
+          host: ["{{baseUrl}}"]
+          path: ["delivery-points"]
+
+    - name: "3. Выбор доставки (Курьер)"
+      event:
+        - listen: test
+          script:
+            exec:
+              - "pm.test('Статус 200', () => {"
+              - "  pm.response.to.have.status(200);"
+              - "});"
+              - "const jsonData = pm.response.json();"
+              - "pm.collectionVariables.set('totalAmount', jsonData.totalAmount);"
+      request:
+        method: POST
+        header:
+          - key: Content-Type
+            value: application/json
+        body:
+          mode: raw
+          raw:
+            deliveryType: courier
+            address:
+              street: "Ленина"
+              house: "50"
+              city: "Екб"
+              postcode: "620000"
+        url:
+          raw: "{{baseUrl}}/orders/{{orderId}}/shipping"
+          host: ["{{baseUrl}}"]
+          path: ["orders", "{{orderId}}", "shipping"]
+
+    - name: "4. Выбор доставки (Самовывоз)"
+      request:
+        method: POST
+        header:
+          - key: Content-Type
+            value: application/json
+        body:
+          mode: raw
+          raw:
+            deliveryType: pickup
+            pickupPointId: point_1
+        url:
+          raw: "{{baseUrl}}/orders/{{orderId}}/shipping"
+          host: ["{{baseUrl}}"]
+          path: ["orders", "{{orderId}}", "shipping"]
+
+    - name: "5. Инициировать оплату (Карта)"
+      event:
+        - listen: test
+          script:
+            exec:
+              - "pm.test('Получили ссылку на оплату', () => {"
+              - "  const jsonData = pm.response.json();"
+              - "  pm.expect(jsonData.paymentUrl).to.exist;"
+              - "  console.log('Оплатить по ссылке:', jsonData.paymentUrl);"
+              - "});"
+      request:
+        method: POST
+        header:
+          - key: Content-Type
+            value: application/json
+        body:
+          mode: raw
+          raw:
+            paymentMethod: card
+            paymentGateway: mock
+        url:
+          raw: "{{baseUrl}}/orders/{{orderId}}/payment"
+          host: ["{{baseUrl}}"]
+          path: ["orders", "{{orderId}}", "payment"]
+
+    - name: "6. Подтвердить заказ"
+      request:
+        method: PUT
+        header:
+          - key: Content-Type
+            value: application/json
+        url:
+          raw: "{{baseUrl}}/orders/{{orderId}}/confirm"
+          host: ["{{baseUrl}}"]
+          path: ["orders", "{{orderId}}", "confirm"]
